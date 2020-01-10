@@ -154,10 +154,8 @@ func (c *CredId) Release() error {
 	if c == nil || c.C_gss_cred_id_t == nil {
 		return nil
 	}
-
 	min := C.OM_uint32(0)
 	maj := C.gss_release_cred(&min, &c.C_gss_cred_id_t)
-
 	return StashLastStatus(maj, min)
 }
 

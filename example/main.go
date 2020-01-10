@@ -1,54 +1,66 @@
-
-
 package main
 
 import (
 	"flag"
+	"github.com/lixiangyun/go-gssapi"
+	"github.com/lixiangyun/go-gssapi/spnego"
 	"log"
-	gssapi "github.com/lixiangyun/go-gssapi"
+	"os"
 )
 
 var (
+	IsClient bool
+	ClientName string
+
 	ServiceName    string
 	ServiceAddress string
 
 	Krb5Ktname string
 	Krb5Config string
 
-	// Service credentials loaded from keytab
-	Credential *gssapi.CredId
+	Help bool
+
+	Spnego *spnego.SPNEGO
 )
 
 func init() {
-	flag.StringVar(&ServiceName, "service-name", "SampleService", "service name")
-	flag.StringVar(&ServiceAddress, "service-address", ":8080", "service address hostname:port")
+	flag.BoolVar(&Help,"help",false,"usage help.")
+
+	flag.BoolVar(&IsClient,"client",false,"client mode.")
+	flag.StringVar(&ClientName,"client-name","","client name.")
+
+	flag.StringVar(&ServiceName, "service-name", "", "service name")
+	flag.StringVar(&ServiceAddress, "service-address", ":8080", "service address [hostname:port]")
+
 	flag.StringVar(&Krb5Ktname, "krb5-ktname", "", "path to the keytab file")
 	flag.StringVar(&Krb5Config, "krb5-config", "", "path to krb5.config file")
 }
 
 func main()  {
 	flag.Parse()
+	if Help || (IsClient && ClientName == "") || ServiceName == "" {
+		flag.Usage()
+		os.Exit(1)
+	}
 
 	err := gssapi.Krb5Set(Krb5Config,Krb5Ktname)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err.Error())
 	}
 
-	log.Fatal(Service())
-}
-
-func prepareServiceName() *gssapi.Name {
-	nameBuf, err := gssapi.MakeBufferString(ServiceName)
-	if err != nil {
-		log.Fatal(err)
+	if IsClient {
+		Spnego, err = spnego.NewSPNEGO(ClientName)
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+		log.Printf("new spnego success! %v",Spnego)
+		log.Fatal(Client(ServiceName,ServiceAddress,"POST","/abc",nil))
+	}else {
+		Spnego, err = spnego.NewSPNEGO(ServiceName)
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+		log.Printf("new spnego success! %v",Spnego)
+		log.Fatal(Service())
 	}
-	defer nameBuf.Release()
-	name, err := nameBuf.Name(gssapi.GSS_KRB5_NT_PRINCIPAL_NAME)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if name.String() != ServiceName {
-		log.Fatalf("name: got %q, expected %q", name.String(), ServiceName)
-	}
-	return name
 }
